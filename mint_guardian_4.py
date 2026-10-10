@@ -215,6 +215,49 @@ class MintGuardian:
                 "color": color
             }
 
+        # Monitor de temperaturas.
+        temperaturas = tk.Frame(
+            self.contenido, bg=PANEL, padx=14, pady=10
+        )
+        temperaturas.pack(fill="x", padx=20, pady=7)
+
+        self.etiqueta(
+            temperaturas, "TEMPERATURAS DEL SISTEMA",
+            bg=PANEL, fg=SECUNDARIO,
+            font=("DejaVu Sans", 10, "bold")
+        ).pack(anchor="w")
+
+        fila_temperaturas = tk.Frame(temperaturas, bg=PANEL)
+        fila_temperaturas.pack(fill="x", pady=(8, 0))
+
+        self.lbl_temp_cpu = self.etiqueta(
+            fila_temperaturas, "CPU: -- °C",
+            bg=PANEL, fg=AZUL,
+            font=("DejaVu Sans", 12, "bold")
+        )
+        self.lbl_temp_cpu.pack(side="left", padx=(0, 24))
+
+        self.lbl_temp_gpu1 = self.etiqueta(
+            fila_temperaturas, "GPU 1: -- °C",
+            bg=PANEL, fg=VERDE,
+            font=("DejaVu Sans", 12, "bold")
+        )
+        self.lbl_temp_gpu1.pack(side="left", padx=(0, 24))
+
+        self.lbl_temp_gpu2 = self.etiqueta(
+            fila_temperaturas, "GPU 2: -- °C",
+            bg=PANEL, fg=AMARILLO,
+            font=("DejaVu Sans", 12, "bold")
+        )
+        self.lbl_temp_gpu2.pack(side="left")
+
+        self.lbl_temp_estado = self.etiqueta(
+            temperaturas, "Consultando sensores...",
+            bg=PANEL, fg=SECUNDARIO,
+            font=("DejaVu Sans", 9)
+        )
+        self.lbl_temp_estado.pack(anchor="w", pady=(6, 0))
+
         # Velocidad de red.
         red = tk.Frame(
             self.contenido, bg=PANEL, padx=14, pady=10
@@ -301,6 +344,27 @@ class MintGuardian:
             self.contenido, "Procesos con mayor uso de RAM",
             font=("DejaVu Sans", 12, "bold")
         ).pack(anchor="w", padx=22, pady=(5, 5))
+       # Busqueda de procesos.
+        barra_busqueda = tk.Frame(self.contenido, bg=FONDO)
+        barra_busqueda.pack(fill="x", padx=20, pady=(0, 7))
+
+        self.filtro_procesos = tk.StringVar()
+
+        self.etiqueta(
+            barra_busqueda, "Buscar:",
+            fg=SECUNDARIO
+        ).pack(side="left", padx=(0, 8))
+
+        entrada_busqueda = ttk.Entry(
+            barra_busqueda,
+            textvariable=self.filtro_procesos
+        )
+        entrada_busqueda.pack(side="left", fill="x", expand=True)
+
+        self.filtro_procesos.trace_add(
+            "write",
+            lambda *_: self.actualizar_procesos()
+        )
 
         marco_tabla = tk.Frame(self.contenido, bg=FONDO)
         marco_tabla.pack(
@@ -320,7 +384,11 @@ class MintGuardian:
             ("ram", "RAM", 90),
             ("cpu", "CPU", 90)
         ]:
-            self.tabla.heading(columna, text=titulo)
+            self.tabla.heading(
+    columna,
+    text=titulo,
+    command=lambda c=columna: self.ordenar_tabla(c)
+)
             self.tabla.column(
                 columna, width=ancho,
                 anchor="w" if columna == "nombre" else "center"
@@ -337,6 +405,18 @@ class MintGuardian:
         # Botones.
         pie = tk.Frame(self.contenido, bg=FONDO)
         pie.pack(fill="x", padx=20, pady=(0, 12))
+
+        tk.Button(
+            pie,
+            text="Ver detalles",
+            command=self.ver_detalles,
+            bg="#245b70",
+            fg="white",
+            activebackground="#347b96",
+            relief="flat",
+            padx=12,
+            pady=7
+        ).pack(side="left", padx=(10, 0))
 
         tk.Button(
             pie, text="Actualizar ahora",
@@ -359,7 +439,32 @@ class MintGuardian:
             fg=SECUNDARIO, font=("DejaVu Sans", 9)
         )
         self.lbl_hora.pack(side="left", padx=12)
+    def ver_detalles(self):
+        seleccion = self.tabla.selection()
 
+        if not seleccion:
+            from tkinter import messagebox
+            messagebox.showinfo(
+                "Detalles del proceso",
+                "Selecciona primero un proceso de la tabla."
+            )
+            return
+
+        valores = self.tabla.item(seleccion[0], "values")
+
+        if not valores:
+            return
+
+        pid, nombre, ram, cpu = valores
+
+        from tkinter import messagebox
+        messagebox.showinfo(
+            "Detalles del proceso",
+            f"Nombre: {nombre}\n"
+            f"PID: {pid}\n"
+            f"RAM: {ram}\n"
+            f"CPU: {cpu}"
+        )
     def configurar_eje(self, eje, titulo, color):
         eje.set_facecolor(PANEL)
         eje.set_title(titulo, color=color, loc="left")
@@ -468,7 +573,36 @@ class MintGuardian:
         self.ax_ram.set_xlim(izquierda, derecha)
 
         self.canvas.draw_idle()
+    def ordenar_tabla(self, columna):
+        columnas = ("pid", "nombre", "ram", "cpu")
+        indice = columnas.index(columna)
 
+        if not hasattr(self, "_orden_columnas"):
+            self._orden_columnas = {}
+
+        descendente = not self._orden_columnas.get(columna, False)
+        self._orden_columnas[columna] = descendente
+
+        filas = []
+
+        for item in self.tabla.get_children():
+            valores = self.tabla.item(item, "values")
+
+            try:
+                if columna == "nombre":
+                    clave = str(valores[indice]).lower()
+                else:
+                    clave = float(
+                        str(valores[indice]).replace("%", "")
+                    )
+                filas.append((clave, item))
+            except (ValueError, IndexError):
+                continue
+
+        filas.sort(key=lambda fila: fila[0], reverse=descendente)
+
+        for posicion, (_, item) in enumerate(filas):
+            self.tabla.move(item, "", posicion)
     def actualizar_procesos(self):
         procesos = []
 
