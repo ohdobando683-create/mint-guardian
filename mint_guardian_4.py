@@ -102,7 +102,59 @@ class MintGuardian:
         )
 
     def interfaz(self):
-        cabecera = tk.Frame(self.root, bg=FONDO)
+        # Área principal con desplazamiento vertical.
+        exterior = tk.Frame(self.root, bg=FONDO)
+        exterior.pack(fill="both", expand=True)
+
+        self.scroll_canvas = tk.Canvas(
+            exterior, bg=FONDO, highlightthickness=0
+        )
+        barra = ttk.Scrollbar(
+            exterior, orient="vertical",
+            command=self.scroll_canvas.yview
+        )
+        self.scroll_canvas.configure(yscrollcommand=barra.set)
+        barra.pack(side="right", fill="y")
+        self.scroll_canvas.pack(side="left", fill="both", expand=True)
+
+        self.contenido = tk.Frame(self.scroll_canvas, bg=FONDO)
+        self.ventana_scroll = self.scroll_canvas.create_window(
+            (0, 0), window=self.contenido, anchor="nw"
+        )
+
+        self.contenido.bind(
+            "<Configure>",
+            lambda e: self.scroll_canvas.configure(
+                scrollregion=self.scroll_canvas.bbox("all")
+            )
+        )
+        self.scroll_canvas.bind(
+            "<Configure>",
+            lambda e: self.scroll_canvas.itemconfigure(
+                self.ventana_scroll, width=e.width
+            )
+        )
+
+        def rueda(event):
+            if isinstance(event.widget, ttk.Treeview):
+                return
+            if getattr(event, "num", None) == 4:
+                pasos = -1
+            elif getattr(event, "num", None) == 5:
+                pasos = 1
+            else:
+                delta = getattr(event, "delta", 0)
+                if not delta:
+                    return
+                pasos = -1 if delta > 0 else 1
+            self.scroll_canvas.yview_scroll(pasos, "units")
+            return "break"
+
+        self.scroll_canvas.bind_all("<MouseWheel>", rueda)
+        self.scroll_canvas.bind_all("<Button-4>", rueda)
+        self.scroll_canvas.bind_all("<Button-5>", rueda)
+
+        cabecera = tk.Frame(self.contenido, bg=FONDO)
         cabecera.pack(fill="x", padx=20, pady=(14, 8))
 
         self.etiqueta(
@@ -117,7 +169,7 @@ class MintGuardian:
         self.lbl_sistema.pack(anchor="w", pady=4)
 
         # Tarjetas de recursos.
-        fila = tk.Frame(self.root, bg=FONDO)
+        fila = tk.Frame(self.contenido, bg=FONDO)
         fila.pack(fill="x", padx=14, pady=5)
 
         self.tarjetas = {}
@@ -165,7 +217,7 @@ class MintGuardian:
 
         # Velocidad de red.
         red = tk.Frame(
-            self.root, bg=PANEL, padx=14, pady=10
+            self.contenido, bg=PANEL, padx=14, pady=10
         )
         red.pack(fill="x", padx=20, pady=7)
 
@@ -193,7 +245,7 @@ class MintGuardian:
         self.lbl_subida.pack(side="left")
 
         # Gráficas.
-        zona_graficas = tk.Frame(self.root, bg=PANEL)
+        zona_graficas = tk.Frame(self.contenido, bg=PANEL)
         zona_graficas.pack(
             fill="both", expand=True,
             padx=20, pady=7
@@ -227,7 +279,7 @@ class MintGuardian:
 
         # Estado y alertas.
         caja_estado = tk.Frame(
-            self.root, bg=PANEL, padx=12, pady=9
+            self.contenido, bg=PANEL, padx=12, pady=9
         )
         caja_estado.pack(fill="x", padx=20, pady=7)
 
@@ -246,11 +298,11 @@ class MintGuardian:
 
         # Procesos.
         self.etiqueta(
-            self.root, "Procesos con mayor uso de RAM",
+            self.contenido, "Procesos con mayor uso de RAM",
             font=("DejaVu Sans", 12, "bold")
         ).pack(anchor="w", padx=22, pady=(5, 5))
 
-        marco_tabla = tk.Frame(self.root, bg=FONDO)
+        marco_tabla = tk.Frame(self.contenido, bg=FONDO)
         marco_tabla.pack(
             fill="both", expand=True, padx=20, pady=(0, 7)
         )
@@ -283,7 +335,7 @@ class MintGuardian:
         scroll.pack(side="right", fill="y")
 
         # Botones.
-        pie = tk.Frame(self.root, bg=FONDO)
+        pie = tk.Frame(self.contenido, bg=FONDO)
         pie.pack(fill="x", padx=20, pady=(0, 12))
 
         tk.Button(
